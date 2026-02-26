@@ -1,45 +1,75 @@
-const express = require("express");
+// server.js
+const express = require('express');
 const app = express();
-
-const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// POST /webhook 핸들러
-app.post("/webhook", (req, res) => {
-  const raw = req.body?.message ?? "";
-  const message = String(raw).trim();
+// Render에서 사용하는 포트
+const PORT = process.env.PORT || 3000;
 
-  console.log("==== 새 요청 ====");
-  console.log("받은 원본 메시지:", raw);
-  console.log("trim 후 메시지:", message);
+// 톡톡이 기대하는 응답 JSON 만들기
+function buildReply(text) {
+  return {
+    event: 'send',
+    textContent: {
+      text,
+    },
+  };
+}
 
-  let reply = "문의 감사합니다 🙂"; // 기본값
+app.post('/webhook', (req, res) => {
+  console.log('=== 새 요청 ===');
+  console.log('원본 body:', JSON.stringify(req.body));
 
-  // 1) 배송 관련 키워드
-  if (message.includes("배송") || message.includes("언제")) {
-    console.log("→ 배송 질문으로 인식");
-    reply =
-      "📦 배송 안내 드릴게요.\n" +
-      "- 평일 오후 3시 이전 주문은 당일 출고됩니다.\n" +
-      "- 평균 배송 기간은 출고 후 1~2일 정도 소요됩니다.\n" +
-      "- 주말/공휴일 주문은 다음 영업일에 출고됩니다.";
+  const body = req.body || {};
+
+  // 1) 우리가 테스트용으로 보내던 { message: "..." }
+  // 2) 톡톡의 send 이벤트 형식 { event: "send", textContent: { text: "..." } }
+  let userText = '';
+
+  if (typeof body.message === 'string') {
+    userText = body.message.trim();
+  } else if (
+    body.textContent &&
+    typeof body.textContent.text === 'string'
+  ) {
+    userText = body.textContent.text.trim();
   }
-  // 2) 엑스붐 버즈 관련
-  else if (message.includes("엑스붐") && message.includes("버즈")) {
-    console.log("→ 엑스붐 버즈 질문으로 인식");
-    reply =
-      "🎧 엑스붐 버즈는 노이즈 캔슬링과 안정적인 블루투스 연결을 지원하는 무선 이어폰입니다.";
-  } else {
-    console.log("→ 어떤 규칙에도 안 걸려서 기본 답변 사용");
+
+  console.log('사용자 텍스트:', userText);
+
+  let replyText = '문의 감사합니다 😊';
+
+  const lower = userText.toLowerCase();
+
+  // 배송 관련 규칙
+  if (lower.includes('배송') || lower.includes('언제') || lower.includes('출고')) {
+    replyText =
+      '📦 배송 안내 드릴게요.\n' +
+      '- 평일 오후 3시 이전 주문은 당일 출고됩니다.\n' +
+      '- 평균 배송 기간은 출고 후 1~2일 정도 소요됩니다.\n' +
+      '- 주말/공휴일 주문은 다음 영업일에 출고됩니다.';
+  }
+  // 교환/반품/환불 규칙 예시
+  else if (
+    lower.includes('교환') ||
+    lower.includes('반품') ||
+    lower.includes('환불')
+  ) {
+    replyText =
+      '↩️ 교환/반품 안내입니다.\n' +
+      '- 제품 수령 후 7일 이내 미개봉 상품은 교환/반품이 가능합니다.\n' +
+      '- 초기 불량의 경우 왕복 배송비는 저희가 부담합니다.\n' +
+      '- 단순 변심의 경우 왕복 배송비가 부과될 수 있습니다.';
   }
 
-  return res.json({ reply });
+  // 톡톡이 이해하는 형식으로 응답
+  res.json(buildReply(replyText));
 });
 
-// GET / (헬스 체크)
-app.get("/", (req, res) => {
-  res.send("DBBeats Bot 서버 정상 작동 중 🚀");
+// 헬스 체크용
+app.get('/', (req, res) => {
+  res.send('DBBeats Bot is running');
 });
 
 app.listen(PORT, () => {
